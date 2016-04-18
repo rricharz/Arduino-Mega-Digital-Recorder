@@ -25,7 +25,7 @@ and pin 4 for CARD_CS
 - A switch to select analog or digital mode is hooked to pin 28
 
 Using the sketch:
-- Set the switch to analg or digial mode.
+- Set the switch to analog or digial mode.
 - There are 4 red fields which display values for the data display
 - There are 5 blue touch buttons
 - Touch **TRIGGER TYPE** and select *change*, *falling*, *rising* or *none* with the rotary encoder
@@ -33,7 +33,7 @@ Using the sketch:
 calculated and displayed
 - Touch **START SCAN** to start acquiring data. The data acquisition is started as soon as
 the trigger condition is met.
-- Once the data has een acquired, you can change **DISPAY TIME** and **DISPLAY START**
+- Once the data has been acquired, you can change **DISPAY TIME** and **DISPLAY START**
 - A cursor is displayed to measure a time **CURSOR TIME**.
 - With a push of the rotary button, a second cursor can be displayed and moved around
 (**2nd CURSOR** and **DIFFERENCE**).
