@@ -26,16 +26,16 @@ and pin 4 for CARD_CS
 
 Using the sketch:
 - Set the switch to analg or digial mode.
-- There are 4 red fields which display values forthe data display
+- There are 4 red fields which display values for the data display
 - There are 5 blue touch buttons
-- Touch **TRIGGER TYPE** and select change, falling, rising or none with the rotary encoder
+- Touch **TRIGGER TYPE** and select *change*, *falling*, *rising* or *none* with the rotary encoder
 - Touch **TIME PER POINT** and select a time with the rotary encoder, the total acquisition time is
 calculated and displayed
-- Touch **START SCAN** to start acquring data. The data acquisition s started as soon as
+- Touch **START SCAN** to start acquiring data. The data acquisition is started as soon as
 the trigger condition is met.
-- Once the data has een acquied, you can change **DISPAY TIME** and **DISPLAY START**
-- A cursr is displayed to measure a time **CURSOR TIME**.
-- With a push of the rotary button, a second cursor can be displayed and movd around
+- Once the data has een acquired, you can change **DISPAY TIME** and **DISPLAY START**
+- A cursor is displayed to measure a time **CURSOR TIME**.
+- With a push of the rotary button, a second cursor can be displayed and moved around
 (**2nd CURSOR** and **DIFFERENCE**).
 
 Please help to improve this program by tweeting to
