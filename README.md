@@ -8,6 +8,10 @@ This sketch uses direct port read and bit manipulations to record either
 
 The data is displayed and manipulated on a touch tft screen.
 
+![Alt text](box.jpg?raw=true)
+
+*An example of a bouncing switch measured on channel A*
+
 The following hardware is used:
 - Arduino Mega 2560 board
 - Adafruit 3.5" 320x480 Color TFT Touchscreen breakout
