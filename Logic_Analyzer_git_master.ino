@@ -56,7 +56,7 @@ struct acquisitionParameters {
   float         setTime; 
   float         actualTime;              // total time in microseconds
   float         actualMicrosPerPoint;    // microseconds per point
-  byte          trigger;                 // trigger type
+  unsigned int  trigger;                 // trigger type
 } acquisition;
 
 struct displayParameters {
@@ -599,6 +599,7 @@ void loop()
     rotary = rotary_getchange();
     if (rotary) {
       acquisition.trigger = (acquisition.trigger + rotary) % 4;
+      Serial.print("acquisition.trigger = "); Serial.println(acquisition.trigger);
       displayButton(0, true, false);
     }
   }
