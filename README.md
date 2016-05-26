@@ -10,7 +10,7 @@ The data is displayed and manipulated on a touch tft screen.
 
 ![Alt text](box.jpg?raw=true)
 
-*An example of a bouncing switch measured on channel A*
+*An example of i2c communication (A = SDA, B = SCL, C = not used)*
 
 The following hardware is used:
 - Arduino Mega 2560 board
