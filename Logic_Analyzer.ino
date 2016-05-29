@@ -1,16 +1,21 @@
 ////////////////////////////////////////////////////////
-// Logic / Analog Recorder (Version 1.6)
-// 3 channels digital recorder, max 250 kHz, 8604 points
-// or 8 bit analog recorder,    max  40 kHz, 4302 points
+// Logic / Analog Recorder (Version 1.7)
+// 3 channels digital recorder, max 900 kHz, 7644 points
+// or 8 bit analog recorder,    max  40 kHz, 3822 points
 // Switch 4 at start selects mode
 ////////////////////////////////////////////////////////
 
 // rricharz 2016
 
-// Uses direct port read and bit manipulations to maximize acquisition speed
-// Reads bit 4-7 of port C of the Arduino Mega 2560 corresponding to the arduino pins 33 - 30
+// #define DUMPDATA                    // define to dump data to Serial Monitor
+
+// Used direct port read and bit manipulations to maximize acquisition speed
+// Reads bit 0-3 of port A of the Arduino Mega 2560 corresponding to the arduino pins 22 - 25
 
 // uses faster adc prescaler above 5 kHz sampling rate
+
+// switch 1: Set for i2c mode (connect sda to pin 30, scl to pin 31, digital mode only)
+// switch 4: Set for analog mode, clear for digital mode
 
 #define TRIGGER (PINC & 128)        // Pin 30 (PC7) is used as the trigger signal
 #define ANALOG_PIN 5                // Analog pin 5 is used as the analog input
@@ -40,7 +45,7 @@ const unsigned char PS_128 = (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
 
 Adafruit_HX8357 tft  = Adafruit_HX8357(TFT_CS, TFT_DC, TFT_RST);
 
-#define BUFFSIZE          4302    // should be a multiple of tft.width() - 2, must be a constant
+#define BUFFSIZE          3822    // should be a multiple of tft.width() - 2, must be a constant
 #define CHANNELS             3
 
 byte buffer[BUFFSIZE];            // Data buffer
@@ -56,7 +61,7 @@ struct acquisitionParameters {
   float         setTime; 
   float         actualTime;              // total time in microseconds
   float         actualMicrosPerPoint;    // microseconds per point
-  unsigned int  trigger;                 // trigger type
+  byte          trigger;                 // trigger type
 } acquisition;
 
 struct displayParameters {
@@ -96,7 +101,7 @@ const char paramUnits[NUMPARAMS][6]     = {   " ms",     " ms",       " ms"  ,  
 
 boolean buttonState[NUMBUTTONS];
 
-boolean adcMode;
+boolean adcMode, i2cMode;
 
 int minMicrosPerPoint;
 int maxMicrosPerPoint;
@@ -118,9 +123,9 @@ void setup(void)
   pinMode(CARD_CS, OUTPUT);
   digitalWrite(CARD_CS, HIGH);
  
-  pinMode(30, INPUT_PULLUP);          // PC 7
-  pinMode(31, INPUT_PULLUP);          // PC 6
-  pinMode(32, INPUT_PULLUP);          // PC 5
+  pinMode(30, INPUT);          // PC 7
+  pinMode(31, INPUT);          // PC 6
+  pinMode(32, INPUT);          // PC 5
   
   rotary_setup();
   
@@ -128,6 +133,11 @@ void setup(void)
   tft.setRotation(3);
   
   adcMode = rotary_switch(4);                         // read only once at startup, cannot be changed during execution of program
+
+  if (adcMode)
+    i2cMode = false;
+  else
+    i2cMode = rotary_switch(1);
   
   tft.fillScreen(HX8357_BLACK);
   
@@ -141,15 +151,15 @@ void setup(void)
     tft.drawFastHLine(1, YGSTART + (512 / 3) + 1, tft.width() - 2, HX8357_YELLOW);
   }
   else {
-    minMicrosPerPoint              = 4;
-    maxMicrosPerPoint              = 256 * minMicrosPerPoint;
+    minMicrosPerPoint              = 1;
+    maxMicrosPerPoint              = 256 * 5;
     acquisition.nPoints            = 2 * BUFFSIZE;
-    acquisition.setMicrosPerPoint  = 4 * minMicrosPerPoint;
+    acquisition.setMicrosPerPoint  = 5;
   }
   acquisition.setTime              = (float) acquisition.setMicrosPerPoint * (float) acquisition.nPoints / (float) 1000;
-  acquisition.actualMicrosPerPoint = acquisition.setMicrosPerPoint;
+  acquisition.actualMicrosPerPoint = (float)acquisition.setMicrosPerPoint;
   acquisition.actualTime           = acquisition.setTime;
-  acquisition.trigger              = 1;
+  acquisition.trigger              = 2;
   
   disp.hPixels                     = tft.width() - 2;
   disp.pointsPerPixel              = acquisition.nPoints / disp.hPixels;
@@ -160,9 +170,12 @@ void setup(void)
   tft.setCursor(8,8);
   tft.setTextColor(HX8357_YELLOW);  tft.setTextSize(2);
   if (adcMode)
-    tft.print("Analog Recorder (switch 4 sets mode)");
+    tft.print  ("                   S4: analog recorder");
   else
-    tft.print("Logic Recorder (switch 4 sets mode)");
+    if (i2cMode)
+      tft.print("S1: i2c             S4: logic recorder");
+    else
+      tft.print("S1: normal          S4: logic recorder");
   tft.setTextSize(1);
   
   mainCursor.pixel = 1.0;
@@ -213,8 +226,11 @@ void displayButton(int buttonNumber, boolean pushed, boolean newDraw)
   if      (buttonNumber == 0)
     value = 0.0;
   else if (buttonNumber == 1) {
-    value = acquisition.setMicrosPerPoint;
-    maxafterpoint = 1;
+    value = acquisition.actualMicrosPerPoint;
+    if (acquisition.actualMicrosPerPoint < 100.0)
+      maxafterpoint = 2;
+    else
+      maxafterpoint = 1;
   }
   else if (buttonNumber == 2)
     value = acquisition.setTime;
@@ -269,7 +285,7 @@ void displayParameter(int boxNumber, boolean newDraw)
   else if (boxNumber == 2)
     value = abs(mainCursor.value - secondCursor.value);
   else if (boxNumber == 3)
-    value = 1000.0 / acquisition.setMicrosPerPoint;
+    value = 1000.0 / acquisition.actualMicrosPerPoint;
   else if (boxNumber == 4)
     value =  (float)buffer[mainCursor.point] * VOLTat255 / 255.0;
   bgcolor = tft.color565(191, 0, 0);
@@ -292,6 +308,197 @@ void displayParameter(int boxNumber, boolean newDraw)
   tft.setTextColor(fgcolor); tft.setTextSize(1);
   tft.setCursor(XBOFFSET + boxNumber * (XBSIZE + 5) + (XBSIZE / 2) - (strlen(strbuf) * 3), YPOFFSET + 18);
   tft.print(strbuf);
+}
+
+////////////////////////
+void printHexByte(int b)
+////////////////////////
+// Startdard HEX printing does not print leading 0
+{
+  // tft.print("0x");
+  tft.print((b >> 4) & 0xF, HEX);
+  tft.print(b & 0xF, HEX);
+}
+
+
+//////////////////////
+void display_i2c(void)
+//////////////////////
+{
+  int p, k, sda, scl, lastscl, sclStart, pos, n_one, n_zero, bitcount, data, state, lastData;
+  Serial.println("display_i2c:");
+  tft.fillRect(1, YGOFFSET + 2 * YGOFFSET + 12, tft.width() - 2, YGSIZE, HX8357_BLACK);
+  p = 0;
+  lastscl = 1;
+  bitcount = 0;
+  data = 0;
+  state = 0;
+  while (p < 2 * BUFFSIZE) {
+      k = p / 2;
+      if (p % 2) {
+        sda = bitRead(buffer[k], 3);
+        scl = bitRead(buffer[k], 2);
+      }
+      else {
+        sda = bitRead(buffer[k], 7);
+        scl = bitRead(buffer[k], 6);
+      }
+    if ((lastscl == 0) && (scl == 1)) {            // scl high begins
+      lastscl = 1;
+      sclStart = p;
+      pos = (sclStart - disp.firstPoint) / disp.pointsPerPixel;
+      n_one = 0;                                   // reset sda value
+      n_zero = 0;
+    }
+    if (scl == 1) {                                // measure sda state                
+      if (sda == 1)
+        n_one++;
+      else
+        n_zero++;
+    }
+    if ((lastscl == 1) && (scl == 0)) {            // scl high ends
+      lastscl = 0;
+      // Serial.print("scl low: start = "); Serial.print(sclStart); Serial.print(", end = "); Serial.print(p - 1);
+      // Serial.print(" pos = "); Serial.println(pos);
+      
+      if (pos < (tft.width() - 24)) {
+        tft.setCursor(pos + 2, YGOFFSET + 2 * YGOFFSET + 14);
+        tft.setTextSize(1);
+        if ((n_zero == 0) && (n_one > 0)) {
+          tft.setTextColor(HX8357_GREEN);
+          if (pos > 0)
+            tft.print('1');
+          data = (data << 1) + 1;
+          bitcount++;
+        }
+        else if ((n_one == 0) && (n_zero > 0)) {
+          tft.setTextColor(HX8357_GREEN);
+          if (pos > 0)
+            tft.print('0');
+          data = (data << 1);
+          bitcount++;
+        }
+        else { 
+          state = 0;
+          bitcount = 0;
+          data = 0;
+        }
+        if (state == 0) {                  // device number
+          if (bitcount == 7) {
+            tft.setCursor(pos + 2, YGOFFSET + 2 * YGOFFSET + 24);
+            if (pos > 0)
+              tft.setTextColor(HX8357_GREEN);
+            printHexByte(data);
+            state++;
+            bitcount = 0;
+            data = 0;
+          }
+        }
+        else if (state == 1) {             // read or write
+          if (bitcount == 1) {
+            tft.setCursor(pos + 2, YGOFFSET + 2 * YGOFFSET + 34);
+            tft.setTextColor(HX8357_GREEN);
+            if (data) {
+              if (pos > 0)
+                tft.print('R');
+            }
+            else {
+              if (pos > 0)
+                tft.print('W');
+            }
+            state++;
+            bitcount = 0;
+            data = 0;
+          }
+        }
+        else if (state == 2) {             // acqnowledge
+          if (bitcount == 1) {
+            tft.setCursor(pos + 2, YGOFFSET + 2 * YGOFFSET + 44);
+            if (data) {
+              tft.setTextColor(HX8357_RED);
+              if (pos > 0)
+                tft.print('A');   
+            }
+            else {
+              tft.setTextColor(HX8357_GREEN);
+              if (pos > 0)
+                tft.print('A');   
+            }            
+            state++;
+            bitcount = 0;
+            data = 0;
+          }
+        }
+        else if (state == 3) {              // address / data
+          if (bitcount == 8) {
+            tft.setCursor(pos + 2, YGOFFSET + 2 * YGOFFSET + 24);
+            tft.setTextColor(HX8357_YELLOW);
+            if (pos > 0)
+              printHexByte(data);
+            tft.setCursor(pos + 2, YGOFFSET + 2 * YGOFFSET + 34);
+            if (pos > 0)
+              tft.print(data);
+            state++;
+            bitcount = 0;
+            lastData = data;
+            data = 0;
+          }
+        }
+        else if (state == 4) {             // acqnowledge
+          if (bitcount == 1) {
+            tft.setCursor(pos + 2, YGOFFSET + 2 * YGOFFSET + 44);
+            if (data) {
+              tft.setTextColor(HX8357_RED);
+              if (pos > 0)
+                tft.print('A');   
+            }
+            else {
+              tft.setTextColor(HX8357_GREEN);
+              if (pos > 0)
+                tft.print('A');   
+            }            
+            state++;
+            bitcount = 0;
+            data = 0;
+          }
+        }
+        else if (state == 5) {              // data 2
+          if (bitcount == 8) {
+            tft.setCursor(pos + 2, YGOFFSET + 2 * YGOFFSET + 24);
+            tft.setTextColor(HX8357_YELLOW);
+            if (pos > 0)
+              printHexByte(data);
+            tft.setCursor(pos + 2, YGOFFSET + 2 * YGOFFSET + 34);
+            tft.setTextColor(HX8357_WHITE);
+            if (pos > 0)
+              tft.print((data << 8) | lastData);
+            state++;
+            bitcount = 0;
+            data = 0;
+          }
+        }
+        else if (state == 6) {             // acqnowledge
+          if (bitcount == 1) {
+            tft.setCursor(pos + 2, YGOFFSET + 2 * YGOFFSET + 44);
+            if (data) {
+              tft.setTextColor(HX8357_RED);
+              if (pos > 0)
+                tft.print('A');   
+            }
+            else {
+              tft.setTextColor(HX8357_GREEN);
+              if (pos > 0)
+                tft.print('A');   
+            }            
+            state = 3;
+            bitcount = 0;
+            data = 0;
+          }
+        }
+      }
+    }
+  p++;      
+  }
 }
 
 /////////////////////////////////////
@@ -383,8 +590,14 @@ void displayResult()
   if (adcMode)
     display_analog();
   else
-    for (int g = 0; g < CHANNELS; g++)
-      display_digital(g);
+    if (i2cMode) {
+      for (int g = 0; g < (CHANNELS - 1); g++)
+        display_digital(g);
+      display_i2c();
+    }
+    else
+      for (int g = 0; g < CHANNELS; g++)
+        display_digital(g);
 }
 
 ////////////////////////////
@@ -434,29 +647,38 @@ unsigned long acquire_data()
     }
   }
   else {
-    while (k < BUFFSIZE) {                     // Port C bit 7 - 4 are pin 30 - 33 on Arduino Mega 2560
-      buffer[k] = (PINC & 0xF0);               // read bits 4 - 7 of Port C, store them in bits 4 - 7 of buffer[k]
-      time += acquisition.setMicrosPerPoint;
-      while (micros() < time);
-      buffer[k++] |= (PINC >> 4);              // read bits 4 - 7 of Port C, store them in bits 0 - 3 of buffer[k]
-      time += acquisition.setMicrosPerPoint;
-      while (micros() < time);
+    if (acquisition.setMicrosPerPoint >= 5) {
+      while (k < BUFFSIZE) {                     // Port C bit 7 - 4 are pin 30 - 33 on Arduino Mega 2560
+        buffer[k] = (PINC & 0xF0);               // read bits 4 - 7 of Port C, store them in bits 4 - 7 of buffer[k]
+        time += acquisition.setMicrosPerPoint;
+        while (micros() < time);
+        buffer[k++] |= (PINC >> 4);              // read bits 4 - 7 of Port C, store them in bits 0 - 3 of buffer[k]
+        time += acquisition.setMicrosPerPoint;
+        while (micros() < time);
+      }
+    }
+    else {
+      while (k < BUFFSIZE) {                     // Port C bit 7 - 4 are pin 30 - 33 on Arduino Mega 2560
+        buffer[k] = (PINC & 0xF0);               // read bits 4 - 7 of Port C, store them in bits 4 - 7 of buffer[k]
+        buffer[k++] |= (PINC >> 4);              // read bits 4 - 7 of Port C, store them in bits 0 - 3 of buffer[k]
+      }
     }
   }
   // calculate the actual acquisition parameter
   time = micros() - starttime;
   acquisition.actualTime           = (float) time / (float) 1000;
   acquisition.actualMicrosPerPoint = (float) time / (float) acquisition.nPoints;
+  // Serial.print("ActualMicrosPerPoint = "); Serial.println(acquisition.actualMicrosPerPoint);
   
   if (adcMode && (acquisition.setMicrosPerPoint < 130.0))
     ADCSRA |= PS_128;        // set ADC prescaler back to normal
   
   // display the actual acquisition parameters
   acquisition.setTime            = acquisition.actualTime;
-  acquisition.setMicrosPerPoint  = acquisition.actualMicrosPerPoint;
-  displayButton(1, false, false);
-  displayButton(2, true, false);
-  
+  acquisition.setMicrosPerPoint  = (float)acquisition.actualMicrosPerPoint;
+  displayButton(1, false, false);     // display actual time per point
+  displayButton(2, true, false);      // display actual scan time
+  displayParameter(3, false);         // display actual acquisition frequecy
   disp.pointsPerPixel = acquisition.nPoints / disp.hPixels;
   disp.firstPoint     = 0;
   calcDependentDisplayParams();
@@ -466,6 +688,7 @@ unsigned long acquire_data()
 void displaySecondCursor(boolean redraw)
 ////////////////////////////////////////
 {
+  int nchannels;
   // erase current position of second cursor, if it was on screen and is not identical with first cursor
   if (((int) mainCursor.pixel != (int) secondCursor.pixel) && ((int) secondCursor.pixel >= 1) && ((int) secondCursor.pixel <= disp.hPixels)) {
   if (adcMode)
@@ -473,10 +696,14 @@ void displaySecondCursor(boolean redraw)
   else
     eraseDigitalCursor(secondCursor.pixel); 
   }
+  if (i2cMode)
+    nchannels = CHANNELS - 1;
+  else
+    nchannels = CHANNELS;
   if (redraw) {
     secondCursor.pixel = (((secondCursor.value - disp.start) * (float) disp.hPixels) / disp.time) + 1.0;
     if (((int) secondCursor.pixel >= 1) && ((int) secondCursor.pixel <= disp.hPixels))  // if on screen
-      tft.drawFastVLine((int) secondCursor.pixel, YGSTART - 10, YGSIZE + ((CHANNELS - 1) * YGOFFSET) + 20, HX8357_RED);
+      tft.drawFastVLine((int) secondCursor.pixel, YGSTART - 10, YGSIZE + ((nchannels - 1) * YGOFFSET) + 20, HX8357_RED);
   }
   else // second cursor does not need to be drawn, because main cursor is at the same position
     secondCursor.pixel = mainCursor.pixel;
@@ -490,9 +717,14 @@ void displaySecondCursor(boolean redraw)
 void eraseDigitalCursor(float pix)
 //////////////////////////////////
 {
+    int nchannels;
     if ((int) mainCursor.pixel != (int) secondCursor.pixel) {
-      tft.drawFastVLine((int) pix, YGSTART - 10, YGSIZE + ((CHANNELS - 1) * YGOFFSET) + 20, HX8357_BLACK);
-      for (int i = 0; i < CHANNELS; i++) {
+      if (i2cMode)
+        nchannels = CHANNELS - 1;
+      else
+        nchannels = CHANNELS;
+      tft.drawFastVLine((int) pix, YGSTART - 10, YGSIZE + ((nchannels - 1) * YGOFFSET) + 20, HX8357_BLACK);
+      for (int i = 0; i < nchannels; i++) {
         int ymin = YGSTART + (i * YGOFFSET);
         boolean minvalue = bitRead(ybarBuffer[(int) pix], 2 * i);
         boolean maxvalue = bitRead(ybarBuffer[(int) pix], (2 * i) + 1);
@@ -522,6 +754,7 @@ void eraseAnalogCursor(float pix)
 void displayMainCursor(boolean redraw)
 //////////////////////////////////////
 {
+  int nchannels;
   int rotary = getAcceleratedRotaryChange();
   if (rotary || redraw) {
     // erase current cursor position
@@ -535,8 +768,12 @@ void displayMainCursor(boolean redraw)
       // Serial.print("New cursor pos = "); Serial.println((int) mainCursor.pixel);
     } 
     else
-      mainCursor.pixel = constrain(mainCursor.pixel + rotary, 1.0, disp.hPixels);    
-    tft.drawFastVLine((int) mainCursor.pixel, YGSTART - 10, YGSIZE + ((CHANNELS - 1) * YGOFFSET) + 20, HX8357_RED);
+      mainCursor.pixel = constrain(mainCursor.pixel + rotary, 1.0, disp.hPixels);
+    if (i2cMode)
+        nchannels = CHANNELS - 1;
+      else
+        nchannels = CHANNELS;    
+    tft.drawFastVLine((int) mainCursor.pixel, YGSTART - 10, YGSIZE + ((nchannels - 1) * YGOFFSET) + 20, HX8357_RED);
     mainCursor.value = disp.start + ((mainCursor.pixel - 1.0) * disp.time / float(disp.hPixels));
     mainCursor.point = (int)((mainCursor.pixel - 1.0) * (float)disp.pointsPerPixel) + disp.firstPoint;
     displayParameter(0, false);
@@ -587,6 +824,18 @@ int getAcceleratedRotaryChange()
   }
 }
 
+#ifdef DUMPDATA
+////////////////
+void dump_data()
+////////////////
+{
+  Serial.println(BUFFSIZE);
+  for (int i = 0; i < BUFFSIZE; i++) {
+    Serial.println(buffer[i]);
+  }
+}
+#endif
+
 ///////////
 void loop()
 ///////////
@@ -598,8 +847,7 @@ void loop()
   if (buttonState[0]) {                          // FIRST BUTTON SET (TRIGGER TYPE)
     rotary = rotary_getchange();
     if (rotary) {
-      acquisition.trigger = (acquisition.trigger + rotary) % 4;
-      Serial.print("acquisition.trigger = "); Serial.println(acquisition.trigger);
+        acquisition.trigger = (acquisition.trigger + rotary) & 3;
       displayButton(0, true, false);
     }
   }
@@ -607,14 +855,26 @@ void loop()
   else if (buttonState[1]) {                     // SECOND BUTTON SET (TIME PER POINT)
     rotary = rotary_getchange();
     if (rotary) {
-      if (rotary > 0)
+      if (rotary > 0) {
         acquisition.setMicrosPerPoint = constrain(2 * acquisition.setMicrosPerPoint, minMicrosPerPoint, maxMicrosPerPoint);
-      else
+        if (acquisition.setMicrosPerPoint < 5)     // no values between 1 and 5 (acquisition below 5 at full speed possible)
+          acquisition.setMicrosPerPoint = 5;
+      }
+      else {
         acquisition.setMicrosPerPoint = constrain(acquisition.setMicrosPerPoint / 2, minMicrosPerPoint, maxMicrosPerPoint);
+          if (acquisition.setMicrosPerPoint < 5)
+          acquisition.setMicrosPerPoint = 1;       // no values between 1 and 5 (acquisition below 5 at full speed possible)
+      }
       acquisition.setTime = (float)acquisition.setMicrosPerPoint * (float)acquisition.nPoints / 1000.0;
+      acquisition.actualMicrosPerPoint = (float)acquisition.setMicrosPerPoint;
       displayButton(1, true, false);
       displayButton(2, false, false);
       displayParameter(3, false);
+      disp.firstPoint = 0;
+      disp.time = acquisition.setTime;
+      calcDependentDisplayParams();
+      displayButton(3, false, false);
+      displayButton(4, false, false);
     }
   }
   
@@ -664,8 +924,11 @@ void loop()
     if (button == 2) {                            // SCAN button
       changeButtonState(2);
       Serial.println("\nStart acquisition");
-      acquire_data();
+      acquire_data();   
       Serial.println("Acquisition complete");
+#ifdef DUMPDATA
+      dump_data();
+#endif    
       changeButtonState(2);
       displayResult();
       displaySecondCursor(true);    
@@ -680,5 +943,9 @@ void loop()
     displaySecondCursor(false);
   }
   if (adcMode != rotary_switch(4))
-    setup();  
+    setup();
+  if (!adcMode) {
+    if (i2cMode != rotary_switch(1))
+      setup();
+  }
 }

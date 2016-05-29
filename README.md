@@ -3,8 +3,8 @@
 How fast can you record data with an Arduino Mega 2560 ?
 
 This sketch uses direct port read and bit manipulations to record either
-- 4 digital channels at a maximum speed of 250 kHz (8604 data points) 
-- 1 analog channel (8 bits) at a maximum speed of 40 kHz (4302 data points)
+- 4 digital channels at a maximum speed of approx. 900 kHz (7644 data points) 
+- 1 analog channel (8 bits) at a maximum speed of 40 kHz (3822 data points)
 
 The data is displayed and manipulated on a touch tft screen.
 
@@ -26,7 +26,7 @@ but not dispayed. The program sets these pins to INPUT_PULLUP.
 and pin 4 for CARD_CS
 - The Touch pannel uses pin A2 for YP, pin A3 for XM, pin 7 for YM and pin 8 for XP
 - The rotary encoder uses pin 23 for CHA, 25 for CHB and 27 for the switch
-- A switch to select analog or digital mode is hooked to pin 28
+- 4 switches hooked to pin 26, 24, 22, 28 
 
 Using the sketch:
 - Set the switch to analog or digial mode.
