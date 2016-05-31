@@ -68,7 +68,8 @@ struct displayParameters {
   int           hPixels;
   int           pointsPerPixel;
   int           firstPoint;
-  long          microsPerPixel;
+  int           stretchPoints;
+  float         microsPerPixel;
   float         time;
   float         start;
 } disp;
@@ -164,6 +165,7 @@ void setup(void)
   disp.hPixels                     = tft.width() - 2;
   disp.pointsPerPixel              = acquisition.nPoints / disp.hPixels;
   disp.firstPoint                  = 0;
+  disp.stretchPoints               = 1;
   calcDependentDisplayParams();
   
   tft.drawRoundRect(0, 0, tft.width(), tft.height(), 4, HX8357_YELLOW);
@@ -208,7 +210,9 @@ void setup(void)
 void calcDependentDisplayParams()
 /////////////////////////////////
 {
-  disp.microsPerPixel = acquisition.actualMicrosPerPoint * disp.pointsPerPixel;
+  disp.microsPerPixel = acquisition.actualMicrosPerPoint * (float)disp.pointsPerPixel / (float)disp.stretchPoints;
+  Serial.print("hPixels = "); Serial.println(disp.hPixels);
+  Serial.print("microsPerPixel = "); Serial.println(disp.microsPerPixel);
   disp.time         = (float) disp.hPixels * (float) disp.microsPerPixel /  float (1000);
   disp.start        = (float) disp.firstPoint * acquisition.actualMicrosPerPoint / (float) 1000;
 }
@@ -515,7 +519,7 @@ void display_digital(int graphNumber)
   
   for (pix = 0; pix < tft.width() - 2; pix++) {
     for (pPix = 0; pPix < disp.pointsPerPixel; pPix++) {
-      m = disp.firstPoint + (pix * disp.pointsPerPixel) + pPix;
+      m = disp.firstPoint + ((pix * disp.pointsPerPixel) / disp.stretchPoints) + pPix;
       k = m / 2;
       if (m % 2)
         value = bitRead(buffer[k], bitNum);
@@ -556,7 +560,7 @@ void display_analog(void)
   
   for (pix = 0; pix < tft.width() - 2; pix++) {
     for (pPix = 0; pPix < disp.pointsPerPixel; pPix++) {
-      m = disp.firstPoint + (pix * disp.pointsPerPixel) + pPix;
+      m = disp.firstPoint + ((pix * disp.pointsPerPixel) / disp.stretchPoints) + pPix;
       value = buffer[m];
       if (value < minvalue)
         minvalue = value;
@@ -881,19 +885,29 @@ void loop()
   else if (buttonState[3]) {                     // FOURTH BUTTON SET (DISPLAY TIME)
     rotary = rotary_getchange();
     if (rotary) {
-      if (rotary > 0)
-        disp.pointsPerPixel = ((3 * disp.pointsPerPixel) + 1) / 2;
-      else
-        disp.pointsPerPixel = (2 * disp.pointsPerPixel) / 3;
+      if (rotary > 0) {
+        if (disp.stretchPoints > 1)
+          disp.stretchPoints /= 2;
+        else
+          disp.pointsPerPixel = ((3 * disp.pointsPerPixel) + 1) / 2;
+      }
+      else {
+        if (disp.pointsPerPixel == 1)
+          disp.stretchPoints *= 2;
+        else
+          disp.pointsPerPixel = (2 * disp.pointsPerPixel) / 3;
+      }
+      disp.stretchPoints = constrain(disp.stretchPoints, 1, 8);
+      // Serial.print("stretchPoints = "); Serial.println(disp.stretchPoints);
       if (adcMode)
         disp.pointsPerPixel = constrain(disp.pointsPerPixel, 1, BUFFSIZE / disp.hPixels);
       else
         disp.pointsPerPixel = constrain(disp.pointsPerPixel, 1, (BUFFSIZE * 2) / disp.hPixels);
-      pointsOnDisplay = disp.pointsPerPixel * disp.hPixels;
-      if (rotary < 0) {
-        // try to expand around cursor position
-        disp.firstPoint = mainCursor.point - (pointsOnDisplay / 2);
-      }
+      pointsOnDisplay = (disp.pointsPerPixel * disp.hPixels) / disp.stretchPoints;
+      // if (rotary < 0) {
+      //   // try to expand around cursor position
+      //   disp.firstPoint = mainCursor.point - (pointsOnDisplay / 2);
+      // }
       disp.firstPoint = constrain(disp.firstPoint, 0, acquisition.nPoints - pointsOnDisplay);
       calcDependentDisplayParams();     
       displayButton(3, true, false);
@@ -908,7 +922,7 @@ void loop()
     rotary = rotary_getchange();
     pointsOnDisplay = disp.pointsPerPixel * disp.hPixels;
     if (rotary) {
-      disp.firstPoint = constrain( disp.firstPoint + (pointsOnDisplay * rotary / 10), 0, acquisition.nPoints - pointsOnDisplay);
+      disp.firstPoint = constrain( disp.firstPoint + (pointsOnDisplay * rotary / (10 * disp.stretchPoints)), 0, acquisition.nPoints - pointsOnDisplay);
       calcDependentDisplayParams();
       displayButton(4, true, false);
       displayResult();
