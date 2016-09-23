@@ -42,6 +42,4 @@ the trigger condition is met.
 - With a push of the rotary button, a second cursor can be displayed and moved around
 (**2nd CURSOR** and **DIFFERENCE**).
 
-Please help to improve this program by tweeting to
-**http://twitter.com/r_richarz** or opening an issue on this repository
-if you have any problem or suggestion.
+Please open an issue on this repository if you have any problem with the program.
