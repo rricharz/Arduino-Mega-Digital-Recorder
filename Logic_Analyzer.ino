@@ -760,7 +760,7 @@ void displayMainCursor(boolean redraw)
 {
   int nchannels;
   int rotary = getAcceleratedRotaryChange();
-  if (rotary || redraw) {
+  if (rotary | redraw) {
     // erase current cursor position
     if (adcMode)
       eraseAnalogCursor(mainCursor.pixel);
@@ -932,6 +932,7 @@ void loop()
   }
   else                                            // NO BUTTON SET, ROTARY DECODER MOVES CURSOR
     displayMainCursor(false);                     // Check for cursor movement and redraw cursor at new value
+    
   button = checkButtonTap();
   
   if (button >= 0) {                              // Check for touched buttons
