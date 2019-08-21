@@ -1,11 +1,12 @@
 ////////////////////////////////////////////////////////
-// Logic / Analog Recorder (Version 1.7)
+// Logic / Analog Recorder (Version 1.8)
 // 3 channels digital recorder, max 900 kHz, 7644 points
 // or 8 bit analog recorder,    max  40 kHz, 3822 points
 // Switch 4 at start selects mode
 ////////////////////////////////////////////////////////
 
 // rricharz 2016
+// rricharz 8/21/2019: Fixed a bug in getAcceleratedRotaryChange
 
 // #define DUMPDATA                    // define to dump data to Serial Monitor
 
@@ -760,6 +761,7 @@ void displayMainCursor(boolean redraw)
 {
   int nchannels;
   int rotary = getAcceleratedRotaryChange();
+  // Serial.print("displayMainCursor: rotary="); Serial.println(rotary);
   if (rotary | redraw) {
     // erase current cursor position
     if (adcMode)
@@ -824,8 +826,8 @@ int getAcceleratedRotaryChange()
       
     // Serial.print("Rotary interval = "); Serial.print(newTime - lastTime); Serial.print(" msec, rotary = "); Serial.println(rotary);    
     lastTime = newTime;    
-    return rotary;
   }
+  return rotary;
 }
 
 #ifdef DUMPDATA
@@ -930,8 +932,9 @@ void loop()
       displaySecondCursor(true);
     }
   }
-  else                                            // NO BUTTON SET, ROTARY DECODER MOVES CURSOR
+  else {                                          // NO BUTTON SET, ROTARY DECODER MOVES CURSOR
     displayMainCursor(false);                     // Check for cursor movement and redraw cursor at new value
+  }
     
   button = checkButtonTap();
   

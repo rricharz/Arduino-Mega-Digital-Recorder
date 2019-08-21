@@ -29,7 +29,7 @@ void rotary_setup() {
 
 // ********************************************************************
 
-long rotary_getchange(void) {
+int rotary_getchange(void) {
   int result = 0;
   int a = 1;
   int b = 1;
@@ -38,6 +38,7 @@ long rotary_getchange(void) {
     a = a & digitalRead(ENCODER_CHA);
     b = b & digitalRead(ENCODER_CHB);
   }
+  // Serial.print("a="); Serial.print(a);Serial.print(", prevA="); Serial.print(prevA);
   if ((prevA == HIGH) && (a == LOW)) {
     if (b == HIGH)
       result = 1;
@@ -46,6 +47,7 @@ long rotary_getchange(void) {
   }
   if ((result * prevResult) < 0)                // debouncing: no direction change without pause
       result = 0;
+  // Serial.print(", result="); Serial.println(result);
   prevA = a;
   prevResult = result;
   // if (result) { Serial.print("Rotary encoder result = "); Serial.println(result); }
